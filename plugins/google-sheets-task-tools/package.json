@@ -1,0 +1,20 @@
+{
+  "name": "@cultivata/openclaw-google-sheets-task-tools",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "openclaw": {
+    "extensions": ["./dist/index.js"]
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@sinclair/typebox": "^0.34.41",
+    "openclaw": "^2026.3.13"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.3",
+    "typescript": "^5.8.3"
+  }
+}
