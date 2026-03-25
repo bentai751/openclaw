@@ -1,8 +1,8 @@
 import { Type } from "@sinclair/typebox";
 import { definePluginEntry } from "openclaw/plugin-sdk/plugin-entry";
 
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyWwJSwDK2qWMs1cXxa7_s20EXhQ8prezmEIpuMvogZ21OiWxsnFFNPfGDoU2nL2c_q/exec";
-const SCRIPT_TOKEN = "cultivata_tasks_2026_x8Kp9Qm2";
+const SCRIPT_URL = "YOUR_APPS_SCRIPT_URL";
+const SCRIPT_TOKEN = "YOUR_NEW_SECRET_TOKEN";
 
 async function postToSheet(body: Record<string, unknown>) {
   const res = await fetch(SCRIPT_URL, {
@@ -25,8 +25,19 @@ async function postToSheet(body: Record<string, unknown>) {
   return data;
 }
 
+type ToolResultDetails = Record<string, unknown>;
+
+function okText(text: string, details: ToolResultDetails) {
+  return {
+    content: [{ type: "text" as const, text }],
+    details,
+  };
+}
+
 export default definePluginEntry({
-  name: "cultivata-google-sheets-task-tools",
+  id: "cultivata-google-sheets-task-tools",
+  name: "Cultivata Google Sheets Task Tools",
+  description: "Google Sheets task tools for OpenClaw via Apps Script",
   register(api) {
     api.registerTool(
       {
@@ -35,11 +46,15 @@ export default definePluginEntry({
         parameters: Type.Object({
           assignee: Type.String({ description: "Person responsible for the task" }),
           title: Type.String({ description: "Short task title" }),
-          due_at: Type.Optional(Type.String({ description: "Datetime in YYYY-MM-DD HH:mm:ss if known" })),
-          due_label: Type.Optional(Type.String({ description: "Human-readable due time like today 6pm" })),
+          due_at: Type.Optional(
+            Type.String({ description: "Datetime in YYYY-MM-DD HH:mm:ss if known" })
+          ),
+          due_label: Type.Optional(
+            Type.String({ description: "Human-readable due time like today 6pm" })
+          ),
           notes: Type.Optional(Type.String({ description: "Optional notes" })),
         }),
-        async execute(_id, params) {
+        async execute(_toolCallId, params) {
           const data = await postToSheet({
             action: "add_task",
             assignee: params.assignee,
@@ -50,14 +65,10 @@ export default definePluginEntry({
           });
 
           const t = data.task;
-          return {
-            content: [
-              {
-                type: "text",
-                text: `Added. ${t.assignee} — ${t.title} — due ${t.due_label || "no due date"}. Task ID: ${t.task_id}.`,
-              },
-            ],
-          };
+          return okText(
+            `Added. ${t.assignee} — ${t.title} — due ${t.due_label || "no due date"}. Task ID: ${t.task_id}.`,
+            { action: "add_task", task: t }
+          );
         },
       },
       { optional: true }
@@ -71,14 +82,14 @@ export default definePluginEntry({
           assignee: Type.Optional(Type.String({ description: "Optional assignee filter" })),
           status: Type.Optional(Type.String({ description: "Task status filter, usually pending" })),
         }),
-        async execute(_id, params) {
+        async execute(_toolCallId, params) {
           const data = await postToSheet({
             action: "list_tasks",
             assignee: params.assignee || "",
             status: params.status || "pending",
           });
 
-          const tasks = data.tasks || [];
+          const tasks = Array.isArray(data.tasks) ? data.tasks : [];
           const text =
             tasks.length === 0
               ? "No matching tasks."
@@ -89,9 +100,7 @@ export default definePluginEntry({
                   )
                   .join("\n");
 
-          return {
-            content: [{ type: "text", text }],
-          };
+          return okText(text, { action: "list_tasks", tasks });
         },
       },
       { optional: true }
@@ -106,7 +115,7 @@ export default definePluginEntry({
           assignee: Type.Optional(Type.String({ description: "Assignee if task_id is not known" })),
           title: Type.Optional(Type.String({ description: "Task title if task_id is not known" })),
         }),
-        async execute(_id, params) {
+        async execute(_toolCallId, params) {
           const data = await postToSheet({
             action: "complete_task",
             task_id: params.task_id || "",
@@ -115,14 +124,10 @@ export default definePluginEntry({
           });
 
           const t = data.task;
-          return {
-            content: [
-              {
-                type: "text",
-                text: `Done. ${t.task_id} — ${t.assignee} — ${t.title} is marked complete.`,
-              },
-            ],
-          };
+          return okText(
+            `Done. ${t.task_id} — ${t.assignee} — ${t.title} is marked complete.`,
+            { action: "complete_task", task: t }
+          );
         },
       },
       { optional: true }
