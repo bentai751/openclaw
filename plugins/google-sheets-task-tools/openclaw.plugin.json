@@ -1,0 +1,7 @@
+{
+  "id": "cultivata-google-sheets-task-tools",
+  "name": "Cultivata Google Sheets Task Tools",
+  "version": "0.1.0",
+  "description": "Google Sheets task tools for OpenClaw via Apps Script",
+  "entry": "./dist/index.js"
+}
