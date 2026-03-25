@@ -4,7 +4,7 @@
   "type": "module",
   "private": true,
   "openclaw": {
-    "extensions": ["./dist/index.js"]
+    "extensions": ["dist/index.js"]
   },
   "scripts": {
     "build": "tsc -p tsconfig.json"
