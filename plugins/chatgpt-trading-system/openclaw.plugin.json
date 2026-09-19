@@ -1,0 +1,36 @@
+{
+  "id": "cultivata-chatgpt-trading-system",
+  "name": "ChatGPT Trading System",
+  "version": "0.2.0",
+  "description": "denghao trading pack: paper trades + Claude/TV strategy lab + 24/7 AI bot workflow",
+  "entry": "dist/index.js",
+  "skills": ["skills"],
+  "contracts": {
+    "tools": [
+      "trading_init_portfolio",
+      "trading_get_portfolio",
+      "trading_create_plan",
+      "trading_validate_risk",
+      "trading_execute_trade",
+      "trading_close_trade",
+      "trading_list_trades",
+      "trading_performance",
+      "strategy_record_result",
+      "strategy_list",
+      "strategy_rank"
+    ]
+  },
+  "toolMetadata": {
+    "trading_init_portfolio": { "optional": true, "sideEffecting": true },
+    "trading_get_portfolio": { "optional": true },
+    "trading_create_plan": { "optional": true, "sideEffecting": true },
+    "trading_validate_risk": { "optional": true },
+    "trading_execute_trade": { "optional": true, "sideEffecting": true },
+    "trading_close_trade": { "optional": true, "sideEffecting": true },
+    "trading_list_trades": { "optional": true },
+    "trading_performance": { "optional": true },
+    "strategy_record_result": { "optional": true, "sideEffecting": true },
+    "strategy_list": { "optional": true },
+    "strategy_rank": { "optional": true }
+  }
+}
