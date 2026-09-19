@@ -7,6 +7,7 @@ const DEFAULT_DATA_DIR =
   process.env.CHATGPT_TRADING_DATA_DIR ||
   join(process.cwd(), "data", "chatgpt-trading-system");
 const LEDGER_PATH = join(DEFAULT_DATA_DIR, "ledger.json");
+const STRATEGY_LAB_PATH = join(DEFAULT_DATA_DIR, "strategy-lab.json");
 
 const INITIAL_CASH = 10_000;
 const RISK_PER_TRADE = 0.01;
@@ -202,6 +203,56 @@ function formatTrade(t: Trade) {
     return `${base} — exit ${t.exit_price} — PnL $${t.pnl} — ${t.close_reason || ""}`;
   }
   return base;
+}
+
+type StrategyResult = {
+  result_id: string;
+  idea: string;
+  family: string;
+  symbol: string;
+  params: string;
+  timeframe?: string;
+  period?: string;
+  trades: number;
+  win_rate?: number;
+  profit_factor?: number;
+  sharpe?: number;
+  max_dd?: number;
+  cagr?: number;
+  buy_hold_cagr?: number;
+  beats_buy_hold?: boolean;
+  notes?: string;
+  created_at: string;
+};
+
+type StrategyLab = {
+  version: string;
+  results: StrategyResult[];
+  next_seq: number;
+};
+
+function emptyLab(): StrategyLab {
+  return { version: "1.0", results: [], next_seq: 1 };
+}
+
+function loadLab(): StrategyLab {
+  if (!existsSync(STRATEGY_LAB_PATH)) return emptyLab();
+  return JSON.parse(readFileSync(STRATEGY_LAB_PATH, "utf8")) as StrategyLab;
+}
+
+function saveLab(lab: StrategyLab) {
+  ensureDir(STRATEGY_LAB_PATH);
+  writeFileSync(STRATEGY_LAB_PATH, JSON.stringify(lab, null, 2), "utf8");
+}
+
+function formatStrategy(r: StrategyResult) {
+  const bh =
+    r.beats_buy_hold === undefined
+      ? "vs B&H ?"
+      : r.beats_buy_hold
+        ? "beats B&H"
+        : "loses to B&H";
+  return `${r.result_id} — ${r.symbol} — ${r.family} — ${r.params} — WR ${r.win_rate ?? "?"} PF ${r.profit_factor ?? "?"} Sharpe ${r.sharpe ?? "?"} CAGR ${r.cagr ?? "?"} — ${bh}`;
 }
 
 export default definePluginEntry({
@@ -580,6 +631,150 @@ export default definePluginEntry({
             closed_pnl: totalPnl,
             open_count: open.length,
           });
+        },
+      },
+      { optional: true }
+    );
+
+    api.registerTool(
+      {
+        name: "strategy_record_result",
+        label: "Record Strategy Result",
+        description:
+          "Save one Claude×TradingView backtest / parameter-sweep result for ranking vs buy-and-hold",
+        parameters: Type.Object({
+          idea: Type.String({ description: "One-sentence strategy idea" }),
+          family: Type.String({
+            description: "mean_reversion | breakout | trend | other",
+          }),
+          symbol: Type.String({ description: "Asset e.g. SPY or BTCUSD" }),
+          params: Type.String({
+            description: "Parameter string e.g. RSI14 <30 />70 stop=2ATR",
+          }),
+          timeframe: Type.Optional(Type.String()),
+          period: Type.Optional(Type.String({ description: "e.g. 2018-2024" })),
+          trades: Type.Optional(Type.Number()),
+          win_rate: Type.Optional(Type.Number({ description: "Percent 0-100" })),
+          profit_factor: Type.Optional(Type.Number()),
+          sharpe: Type.Optional(Type.Number()),
+          max_dd: Type.Optional(Type.Number({ description: "Max drawdown %" })),
+          cagr: Type.Optional(Type.Number({ description: "Strategy CAGR %" })),
+          buy_hold_cagr: Type.Optional(
+            Type.Number({ description: "Buy-and-hold CAGR % for same asset" })
+          ),
+          notes: Type.Optional(Type.String()),
+        }),
+        async execute(_toolCallId, params: any) {
+          const lab = loadLab();
+          const cagr = params.cagr;
+          const bh = params.buy_hold_cagr;
+          const beats =
+            cagr === undefined || bh === undefined
+              ? undefined
+              : Number(cagr) > Number(bh);
+
+          const row: StrategyResult = {
+            result_id: `S${String(lab.next_seq).padStart(3, "0")}`,
+            idea: params.idea,
+            family: String(params.family || "other").toLowerCase(),
+            symbol: String(params.symbol).toUpperCase(),
+            params: params.params,
+            timeframe: params.timeframe || "",
+            period: params.period || "",
+            trades: params.trades ?? 0,
+            win_rate: params.win_rate,
+            profit_factor: params.profit_factor,
+            sharpe: params.sharpe,
+            max_dd: params.max_dd,
+            cagr: params.cagr,
+            buy_hold_cagr: params.buy_hold_cagr,
+            beats_buy_hold: beats,
+            notes: params.notes || "",
+            created_at: new Date().toISOString(),
+          };
+          lab.next_seq += 1;
+          lab.results.push(row);
+          saveLab(lab);
+
+          const lesson =
+            beats === false
+              ? "Note: loses to buy-and-hold on CAGR — 高勝率 ≠ 高報酬."
+              : beats === true
+                ? "Beats buy-and-hold on CAGR — still check Sharpe/DD."
+                : "Add buy_hold_cagr to compare honestly.";
+
+          return okText(`Saved ${formatStrategy(row)}\n${lesson}`, {
+            action: "strategy_record_result",
+            result: row,
+          });
+        },
+      },
+      { optional: true }
+    );
+
+    api.registerTool(
+      {
+        name: "strategy_list",
+        label: "List Strategies",
+        description: "List saved strategy-lab backtest results",
+        parameters: Type.Object({
+          symbol: Type.Optional(Type.String()),
+          family: Type.Optional(Type.String()),
+        }),
+        async execute(_toolCallId, params: any) {
+          const lab = loadLab();
+          let list = lab.results;
+          if (params.symbol) {
+            const s = String(params.symbol).toUpperCase();
+            list = list.filter((r) => r.symbol === s);
+          }
+          if (params.family) {
+            const f = String(params.family).toLowerCase();
+            list = list.filter((r) => r.family === f);
+          }
+          const text =
+            list.length === 0
+              ? "No strategy results yet."
+              : list.map(formatStrategy).join("\n");
+          return okText(text, { action: "strategy_list", results: list });
+        },
+      },
+      { optional: true }
+    );
+
+    api.registerTool(
+      {
+        name: "strategy_rank",
+        label: "Rank Strategies",
+        description:
+          "Rank saved results by sharpe, profit_factor, cagr, or win_rate (default sharpe)",
+        parameters: Type.Object({
+          by: Type.Optional(
+            Type.String({
+              description: "sharpe | profit_factor | cagr | win_rate",
+            })
+          ),
+          limit: Type.Optional(Type.Number({ description: "Max rows, default 10" })),
+        }),
+        async execute(_toolCallId, params: any) {
+          const lab = loadLab();
+          const by = String(params.by || "sharpe").toLowerCase();
+          const limit = Math.max(1, Math.min(50, Number(params.limit) || 10));
+          const key = by as keyof StrategyResult;
+          const ranked = [...lab.results]
+            .filter((r) => typeof r[key] === "number")
+            .sort((a, b) => Number(b[key]) - Number(a[key]))
+            .slice(0, limit);
+
+          const text =
+            ranked.length === 0
+              ? `No results with numeric ${by}.`
+              : [
+                  `Top ${ranked.length} by ${by} (高勝率 ≠ 高報酬 — prefer risk-adjusted):`,
+                  ...ranked.map(formatStrategy),
+                ].join("\n");
+
+          return okText(text, { action: "strategy_rank", by, results: ranked });
         },
       },
       { optional: true }
