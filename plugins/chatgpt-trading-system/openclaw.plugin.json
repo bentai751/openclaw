@@ -1,0 +1,30 @@
+{
+  "id": "cultivata-chatgpt-trading-system",
+  "name": "ChatGPT Trading System",
+  "version": "0.1.0",
+  "description": "Paper-trading workflow copied from denghao ChatGPT Trading System v1.0 (research → signal → 1% risk → execute)",
+  "entry": "dist/index.js",
+  "skills": ["skills"],
+  "contracts": {
+    "tools": [
+      "trading_init_portfolio",
+      "trading_get_portfolio",
+      "trading_create_plan",
+      "trading_validate_risk",
+      "trading_execute_trade",
+      "trading_close_trade",
+      "trading_list_trades",
+      "trading_performance"
+    ]
+  },
+  "toolMetadata": {
+    "trading_init_portfolio": { "optional": true, "sideEffecting": true },
+    "trading_get_portfolio": { "optional": true },
+    "trading_create_plan": { "optional": true, "sideEffecting": true },
+    "trading_validate_risk": { "optional": true },
+    "trading_execute_trade": { "optional": true, "sideEffecting": true },
+    "trading_close_trade": { "optional": true, "sideEffecting": true },
+    "trading_list_trades": { "optional": true },
+    "trading_performance": { "optional": true }
+  }
+}
